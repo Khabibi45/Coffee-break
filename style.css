@@ -53,74 +53,46 @@ header p {
     letter-spacing: 0.05rem;
 }
 
-.coffee-wrapper {
+.viewport-wrapper {
     position: relative;
-    margin-bottom: 3rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.cup-container {
-    position: relative;
-    width: 300px;
-    height: 300px;
+    width: 100%;
+    height: 600px;
+    /* Increased height for the 3x larger cup */
+    margin-bottom: 2rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: bounce 3s ease-in-out infinite;
+    overflow: hidden;
+    border-radius: 30px;
+    background: radial-gradient(circle at center, #1a1a1a 0%, #0d0d0d 100%);
 }
 
-.coffee-image {
+#point-cloud-canvas {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    z-index: 1;
-}
-
-.liquid-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: var(--bg-color);
-    mix-blend-mode: multiply;
-    /* Helps hide the coffee but keep some texture */
-    opacity: 0.9;
-    z-index: 2;
-    clip-path: inset(0 0 0 0);
-    /* Initial: fully covered */
-    pointer-events: none;
-    transition: clip-path 0.2s ease-out;
-}
-
-@keyframes bounce {
-
-    0%,
-    100% {
-        transform: translateY(0) scale(1.02);
-    }
-
-    50% {
-        transform: translateY(-15px) scale(0.98);
-    }
+    display: block;
 }
 
 .timer-display {
     position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 10;
     font-family: 'Outfit', sans-serif;
-    font-size: 3rem;
+    font-size: 5rem;
+    /* Larger timer for the larger cup */
     font-weight: 800;
-    letter-spacing: -0.05rem;
-    text-shadow: 0 0 20px rgba(0, 0, 0, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.5);
     color: white;
+    text-shadow: 0 0 30px rgba(0, 0, 0, 1);
     pointer-events: none;
-    /* Adjust positioning to center inside the cup visual */
-    transform: translateY(10px);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1rem 2rem;
+    border-radius: 24px;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
+
 
 
 .controls-panel {
