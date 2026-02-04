@@ -16,14 +16,15 @@ const sInput = document.getElementById('secs');
 const canvas = document.getElementById('point-cloud-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-camera.position.z = 250;
+const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
+camera.position.z = 600; // Moved back to fit larger cup
 
 let points;
-let particleCount = 60000;
+let particleCount = 100000; // Increased density
 let positions = new Float32Array(particleCount * 3);
 let colors = new Float32Array(particleCount * 3);
 let originalY = new Float32Array(particleCount);
+let particleVelocities = new Float32Array(particleCount); // For "mouvant" effect
 let isImageLoaded = false;
 
 // Load Image and Sample Pixels
@@ -40,25 +41,25 @@ img.onload = () => {
     let pIdx = 0;
     for (let i = 0; i < particleCount; i++) {
         let x, y, val;
-        // Keep sampling until we find a non-white pixel (simple threshold)
         do {
             x = Math.floor(Math.random() * 200);
             y = Math.floor(Math.random() * 300);
             const idx = (y * 200 + x) * 4;
-            val = imgData[idx]; // Sample R channel
-        } while (val > 240 && Math.random() < 0.98); // Reject white mostly
+            val = imgData[idx];
+        } while (val > 240 && Math.random() < 0.99); // Higher threshold for BW
 
-        positions[pIdx] = (x - 100) * 0.8;
-        positions[pIdx + 1] = (150 - y) * 0.8;
-        positions[pIdx + 2] = (Math.random() - 0.5) * 10;
+        // Scale by 3x (was 0.8, now 2.4)
+        positions[pIdx] = (x - 100) * 2.4;
+        positions[pIdx + 1] = (150 - y) * 2.4;
+        positions[pIdx + 2] = (Math.random() - 0.5) * 30; // More depth
 
         originalY[i] = positions[pIdx + 1];
+        particleVelocities[i] = Math.random() * 0.05 + 0.01;
 
-        // Color based on brightness (closer to black = darker coffee/contour)
         const c = val / 255;
         colors[pIdx] = c;
-        colors[pIdx + 1] = c * 0.8;
-        colors[pIdx + 2] = c * 0.6;
+        colors[pIdx + 1] = c; // Grayscale for BW image
+        colors[pIdx + 2] = c;
 
         pIdx += 3;
     }
@@ -68,10 +69,11 @@ img.onload = () => {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({
-        size: 1.2,
+        size: 1.5,
         vertexColors: true,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.9,
+        sizeAttenuation: true
     });
 
     points = new THREE.Points(geometry, material);
@@ -85,28 +87,39 @@ function animate() {
     if (isImageLoaded && points) {
         const time = Date.now() * 0.001;
 
-        // Bouncy effect
-        points.position.y = Math.sin(time * 1.5) * 5;
-        points.rotation.y = Math.sin(time * 0.5) * 0.1;
+        // Scene animation
+        points.position.y = Math.sin(time * 0.8) * 10;
+        points.rotation.y = Math.sin(time * 0.3) * 0.15;
+        points.rotation.x = Math.cos(time * 0.2) * 0.05;
 
-        // Emptying effect
         const percentage = totalSeconds > 0 ? (remainingSeconds / totalSeconds) : 0;
-        // Map percentage to Y threshold (-120 to 120 approx)
-        const thresholdY = -120 + (240 * percentage);
+
+        // Unified Emptying + "Mouvant" logic
+        // Approximate Y range for the cup is from bottom to top (~ -360 to +360 after 2.4x scale)
+        const bottomY = -360;
+        const topY = 360;
+        const rangeY = topY - bottomY;
+        const thresholdY = bottomY + (rangeY * percentage);
 
         const posAttr = points.geometry.attributes.position;
         for (let i = 0; i < particleCount; i++) {
+            // "Mouvant" vibration effect for all particles
+            posAttr.array[i * 3 + 2] += Math.sin(time * 5 + i) * 0.1;
+
             if (originalY[i] > thresholdY) {
-                // Particle should "fall" or disappear
-                // We'll make them fall down rapidly
-                if (posAttr.array[i * 3 + 1] > -200) {
-                    posAttr.array[i * 3 + 1] -= 2;
+                // Falling effect
+                if (posAttr.array[i * 3 + 1] > -500) {
+                    posAttr.array[i * 3 + 1] -= (2 + Math.random() * 3);
+                    // Fade out color as they fall
+                    // points.geometry.attributes.color.array[i*3] *= 0.99;
                 }
             } else {
-                // Reset to original if reset or enough time
-                if (Math.abs(posAttr.array[i * 3 + 1] - originalY[i]) > 1) {
-                    posAttr.array[i * 3 + 1] = originalY[i];
-                }
+                // Return to original or move slightly
+                const targetY = originalY[i] + Math.sin(time * 2 + i) * 2;
+                posAttr.array[i * 3 + 1] += (targetY - posAttr.array[i * 3 + 1]) * 0.1;
+
+                // Keep X and Y returns
+                posAttr.array[i * 3] += Math.cos(time + i) * 0.05;
             }
         }
         posAttr.needsUpdate = true;
@@ -147,6 +160,7 @@ function startTimer() {
     isPaused = false;
     startBtn.disabled = true;
     stopBtn.disabled = false;
+    stopBtn.textContent = "Arrêter";
     startBtn.textContent = "Reprendre";
 
     countdown = setInterval(() => {
@@ -192,6 +206,7 @@ function resetTimer() {
     startBtn.disabled = false;
     startBtn.textContent = "Lancer";
     stopBtn.disabled = true;
+    stopBtn.textContent = "Arrêter";
 }
 
 startBtn.addEventListener('click', startTimer);
@@ -199,4 +214,4 @@ stopBtn.addEventListener('click', pauseTimer);
 resetBtn.addEventListener('click', resetTimer);
 
 // Initial display
-updateDisplay(parseInt(mInput.value) * 60);
+updateDisplay(parseInt(mInput.value) * 60 || 600);
