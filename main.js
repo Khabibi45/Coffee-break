@@ -17,51 +17,106 @@ const canvas = document.getElementById('point-cloud-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 2000);
-camera.position.z = 600; // Moved back to fit larger cup
+camera.position.z = 600;
 
 let points;
-let particleCount = 100000; // Increased density
-let positions = new Float32Array(particleCount * 3);
-let colors = new Float32Array(particleCount * 3);
-let originalY = new Float32Array(particleCount);
-let particleVelocities = new Float32Array(particleCount); // For "mouvant" effect
+let particleCount = 0; // Will be determined by edges
+let positions;
+let colors;
+let originalY;
+let particleVelocities;
+let particleRandoms; // For organic movement
 let isImageLoaded = false;
 
-// Load Image and Sample Pixels
+// Edge Detection Configuration
+const EDGE_THRESHOLD = 30; // Threshold for edge detection sensitivity
+const FILL_DENSITY = 0.05; // Probability of keeping a non-edge pixel (5%)
+
+// Load Image and Process
 const img = new Image();
 img.src = 'coffee_bw.png';
 img.onload = () => {
     const tempCanvas = document.createElement('canvas');
     const ctx = tempCanvas.getContext('2d');
-    tempCanvas.width = 200;
-    tempCanvas.height = 300;
-    ctx.drawImage(img, 0, 0, 200, 300);
-    const imgData = ctx.getImageData(0, 0, 200, 300).data;
+    const w = 200;
+    const h = 300;
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    ctx.drawImage(img, 0, 0, w, h);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
 
-    let pIdx = 0;
+    // 1. Identify Edges
+    const edges = [];
+    const fill = [];
+
+    // Helper to get brightness
+    const getB = (x, y) => {
+        if (x < 0 || x >= w || y < 0 || y >= h) return 255; // Out of bounds is white
+        const i = (y * w + x) * 4;
+        return (data[i] + data[i + 1] + data[i + 2]) / 3;
+    };
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+
+            // Simple Sobel-like check
+            const gx = getB(x - 1, y) - getB(x + 1, y);
+            const gy = getB(x, y - 1) - getB(x, y + 1);
+            const magnitude = Math.sqrt(gx * gx + gy * gy);
+
+            // Dark pixels are matter.
+            // If it's an edge (high magnitude), we keep it.
+            // If it's dark but not edge (fill), we keep it with low prob.
+
+            // Invert logic for "dark drawing on white paper":
+            // We want to draw DARK things.
+            if (brightness < 240) {
+                if (magnitude > EDGE_THRESHOLD) {
+                    edges.push({ x, y, c: brightness / 255 });
+                } else if (Math.random() < FILL_DENSITY) {
+                    fill.push({ x, y, c: brightness / 255 });
+                }
+            }
+        }
+    }
+
+    // Combine
+    const allParticles = [...edges, ...fill];
+    particleCount = allParticles.length;
+
+    positions = new Float32Array(particleCount * 3);
+    colors = new Float32Array(particleCount * 3);
+    originalY = new Float32Array(particleCount);
+    particleVelocities = new Float32Array(particleCount);
+    particleRandoms = new Float32Array(particleCount);
+
+    const scale = 2.4;
+
     for (let i = 0; i < particleCount; i++) {
-        let x, y, val;
-        do {
-            x = Math.floor(Math.random() * 200);
-            y = Math.floor(Math.random() * 300);
-            const idx = (y * 200 + x) * 4;
-            val = imgData[idx];
-        } while (val > 240 && Math.random() < 0.99); // Higher threshold for BW
+        const p = allParticles[i];
 
-        // Scale by 3x (was 0.8, now 2.4)
-        positions[pIdx] = (x - 100) * 2.4;
-        positions[pIdx + 1] = (150 - y) * 2.4;
-        positions[pIdx + 2] = (Math.random() - 0.5) * 30; // More depth
+        // Centering offset: w/2=100, h/2=150
+        const px = (p.x - 100) * scale;
+        const py = (150 - p.y) * scale;
+        // Z-depth: Edges pop out slightly more than fill
+        const pz = (Math.random() - 0.5) * 10;
 
-        originalY[i] = positions[pIdx + 1];
+        positions[i * 3] = px;
+        positions[i * 3 + 1] = py;
+        positions[i * 3 + 2] = pz;
+
+        originalY[i] = py;
         particleVelocities[i] = Math.random() * 0.05 + 0.01;
+        particleRandoms[i] = Math.random() * Math.PI * 2;
 
-        const c = val / 255;
-        colors[pIdx] = c;
-        colors[pIdx + 1] = c; // Grayscale for BW image
-        colors[pIdx + 2] = c;
-
-        pIdx += 3;
+        // Color: Pure black/grey scale
+        const c = p.c;
+        colors[i * 3] = c;
+        colors[i * 3 + 1] = c;
+        colors[i * 3 + 2] = c;
     }
 
     const geometry = new THREE.BufferGeometry();
@@ -72,7 +127,7 @@ img.onload = () => {
         size: 1.5,
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.85,
         sizeAttenuation: true
     });
 
@@ -81,45 +136,71 @@ img.onload = () => {
     isImageLoaded = true;
 };
 
+// Animation Loop
+const clock = new THREE.Clock();
+
 function animate() {
     requestAnimationFrame(animate);
 
     if (isImageLoaded && points) {
         const time = Date.now() * 0.001;
+        const dt = clock.getDelta();
 
-        // Scene animation
-        points.position.y = Math.sin(time * 0.8) * 10;
-        points.rotation.y = Math.sin(time * 0.3) * 0.15;
-        points.rotation.x = Math.cos(time * 0.2) * 0.05;
+        // --- 1. Global Scene Movement (Float/Bounce) ---
+        points.rotation.y = Math.sin(time * 0.2) * 0.1; // Gentle rotation
+        points.position.y = Math.sin(time * 0.5) * 5; // Gentle float home
 
+        // --- 2. Emptying Logic ---
         const percentage = totalSeconds > 0 ? (remainingSeconds / totalSeconds) : 0;
-
-        // Unified Emptying + "Mouvant" logic
-        // Approximate Y range for the cup is from bottom to top (~ -360 to +360 after 2.4x scale)
-        const bottomY = -360;
-        const topY = 360;
+        // Cup approx bounds (scaled)
+        const bottomY = -340;
+        const topY = 340;
         const rangeY = topY - bottomY;
         const thresholdY = bottomY + (rangeY * percentage);
 
         const posAttr = points.geometry.attributes.position;
+        const positions = posAttr.array;
+
         for (let i = 0; i < particleCount; i++) {
-            // "Mouvant" vibration effect for all particles
-            posAttr.array[i * 3 + 2] += Math.sin(time * 5 + i) * 0.1;
+            const ix = i * 3;
+            const iy = i * 3 + 1;
+            const iz = i * 3 + 2;
+
+            // --- 3. Organic "Mouvant" Effect ---
+            // Each pixel breathes slightly in Z and X/Y based on noise-like math
+            const rnd = particleRandoms[i];
+            const wave = Math.sin(time * 3 + rnd + positions[iy] * 0.01);
+
+            // Micro-vibration
+            positions[iz] += wave * 0.05;
+
+            // Logic: Is this particle above the liquid line?
+            // Note: Since this is an outline, we "empty" it by making the top parts dissolve/fall
 
             if (originalY[i] > thresholdY) {
-                // Falling effect
-                if (posAttr.array[i * 3 + 1] > -500) {
-                    posAttr.array[i * 3 + 1] -= (2 + Math.random() * 3);
-                    // Fade out color as they fall
-                    // points.geometry.attributes.color.array[i*3] *= 0.99;
+                // --- FALLING STATE ---
+                // If above threshold, it should fall
+                if (positions[iy] > -550) {
+                    // Falls down
+                    positions[iy] -= (2 + Math.random() * 4);
+                    // Drifts slightly X/Z like dust
+                    positions[ix] += Math.sin(time * 10 + rnd) * 0.5;
+                    positions[iz] += Math.cos(time * 10 + rnd) * 0.5;
+                } else {
+                    // Recycle or hold at bottom
+                    // positions[iy] = -550; 
                 }
             } else {
-                // Return to original or move slightly
-                const targetY = originalY[i] + Math.sin(time * 2 + i) * 2;
-                posAttr.array[i * 3 + 1] += (targetY - posAttr.array[i * 3 + 1]) * 0.1;
-
-                // Keep X and Y returns
-                posAttr.array[i * 3] += Math.cos(time + i) * 0.05;
+                // --- STABLE STATE (with organic move) ---
+                // Return to original Y (spring force) if it was falling
+                const targetY = originalY[i];
+                if (Math.abs(positions[iy] - targetY) > 5) {
+                    // Lerp back up quickly if reset
+                    positions[iy] += (targetY - positions[iy]) * 0.1;
+                } else {
+                    // Just stick to organic movement around original
+                    positions[iy] = targetY + Math.sin(time * 2 + rnd) * 1.5;
+                }
             }
         }
         posAttr.needsUpdate = true;
@@ -129,16 +210,19 @@ function animate() {
 }
 
 function resize() {
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    camera.aspect = canvas.clientWidth / canvas.clientHeight;
-    camera.updateProjectionMatrix();
+    const parent = canvas.parentElement;
+    if (parent) {
+        renderer.setSize(parent.clientWidth, parent.clientHeight, false);
+        camera.aspect = parent.clientWidth / parent.clientHeight;
+        camera.updateProjectionMatrix();
+    }
 }
 
 window.addEventListener('resize', resize);
 resize();
 animate();
 
-// Timer Logic
+// --- Timer Logic ---
 function updateDisplay(seconds) {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
