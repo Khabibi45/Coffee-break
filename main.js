@@ -7,30 +7,33 @@ const display = document.getElementById('display');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const resetBtn = document.getElementById('resetBtn');
-const liquidMask = document.getElementById('liquid-mask');
-const loopToggle = document.getElementById('loopToggle');
-
-const hInput = document.getElementById('hrs');
-const mInput = document.getElementById('mins');
-const sInput = document.getElementById('secs');
+const liquidOverlay = document.querySelector('.liquid-overlay');
 
 function updateDisplay(seconds) {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     display.textContent = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    
-    // Update Coffee Level
-    // The mask y starts at 30 (full) and ends at 92 (empty)
-    // Height is 62
+
+    // Update Coffee Level using clip-path on the "empty" overlay
+    // percentage: 1.0 (full) -> 0.0 (empty)
     const percentage = totalSeconds > 0 ? (remainingSeconds / totalSeconds) : 0;
-    const maskHeight = 62 * percentage;
-    const maskY = 92 - maskHeight;
-    
-    liquidMask.setAttribute('y', maskY);
-    liquidMask.setAttribute('height', maskHeight);
+
+    // We want the overlay to reveal more of the cup as time passes
+    // The cup area is roughly from top 20% to 85% in the image
+    const topLimit = 22;
+    const bottomLimit = 85;
+    const range = bottomLimit - topLimit;
+
+    // We adjust the top of the 'inset' clip-path. 
+    // If percentage is 1 (full), top should be topLimit.
+    // If percentage is 0 (empty), top should be bottomLimit.
+    const currentTop = bottomLimit - (range * percentage);
+
+    liquidOverlay.style.clipPath = `inset(${currentTop}% 0 0 0)`;
 }
+
 
 function startTimer() {
     if (!isPaused) {
@@ -89,7 +92,7 @@ function resetTimer() {
     const s = parseInt(sInput.value) || 0;
     totalSeconds = h * 3600 + m * 60 + s;
     remainingSeconds = totalSeconds;
-    
+
     updateDisplay(remainingSeconds);
     startBtn.disabled = false;
     startBtn.textContent = "Lancer";

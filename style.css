@@ -1,12 +1,14 @@
 :root {
     --bg-color: #0d0d0d;
     --card-bg: #1a1a1a;
-    --primary: #d4a373; /* Coffee warm brown */
+    --primary: #d4a373;
+    /* Coffee warm brown */
     --primary-glow: rgba(212, 163, 115, 0.4);
     --text-main: #f8f9fa;
     --text-muted: #adb5bd;
     --glass-rim: rgba(255, 255, 255, 0.2);
-    --liquid-color: #4b2c20; /* Dark coffee */
+    --liquid-color: #4b2c20;
+    /* Dark coffee */
     --success: #606c38;
 }
 
@@ -57,52 +59,76 @@ header p {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
 }
 
-#coffee-cup {
-    width: 200px;
-    height: 200px;
-    filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+.cup-container {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: bounce 3s ease-in-out infinite;
 }
 
-.cup-glass {
-    fill: rgba(255, 255, 255, 0.05);
-    stroke: var(--glass-rim);
-    stroke-width: 2;
+.coffee-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 1;
 }
 
-.cup-rim {
-    fill: rgba(255, 255, 255, 0.05);
-    stroke: var(--glass-rim);
-    stroke-width: 2;
+.liquid-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-color);
+    mix-blend-mode: multiply;
+    /* Helps hide the coffee but keep some texture */
+    opacity: 0.9;
+    z-index: 2;
+    clip-path: inset(0 0 0 0);
+    /* Initial: fully covered */
+    pointer-events: none;
+    transition: clip-path 0.2s ease-out;
 }
 
-.cup-liquid {
-    fill: var(--liquid-color);
-    transition: all 0.2s ease-out;
-}
+@keyframes bounce {
 
-.cup-handle {
-    stroke: var(--glass-rim);
-    stroke-width: 4;
-    stroke-linecap: round;
+    0%,
+    100% {
+        transform: translateY(0) scale(1.02);
+    }
+
+    50% {
+        transform: translateY(-15px) scale(0.98);
+    }
 }
 
 .timer-display {
+    position: absolute;
+    z-index: 10;
     font-family: 'Outfit', sans-serif;
-    font-size: 3.5rem;
+    font-size: 3rem;
     font-weight: 800;
-    margin-top: 1rem;
     letter-spacing: -0.05rem;
-    text-shadow: 0 0 15px var(--primary-glow);
+    text-shadow: 0 0 20px rgba(0, 0, 0, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.5);
+    color: white;
+    pointer-events: none;
+    /* Adjust positioning to center inside the cup visual */
+    transform: translateY(10px);
 }
+
 
 .controls-panel {
     background: var(--card-bg);
     padding: 2rem;
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 .time-inputs {
@@ -126,7 +152,7 @@ header p {
 
 .input-group input {
     background: #2a2a2a;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: white;
     padding: 0.75rem;
     border-radius: 12px;
@@ -186,12 +212,12 @@ button {
 .outline-btn {
     grid-column: span 2;
     background: transparent;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-muted);
 }
 
 .outline-btn:hover {
-    border-color: rgba(255,255,255,0.3);
+    border-color: rgba(255, 255, 255, 0.3);
     color: white;
 }
 
@@ -252,6 +278,7 @@ input[type="checkbox"]:checked::before {
     .container {
         padding: 1rem;
     }
+
     .timer-display {
         font-size: 2.8rem;
     }
